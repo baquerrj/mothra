@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simple-account-viewer"
+version = "0.1.0"
+description = "Local-only spending visualizer for checking account CSV files."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.2,<3.0",
+    "streamlit>=1.44,<2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.11,<2.0",
+    "pytest>=8.3,<9.0",
+    "ruff>=0.11,<0.12",
+]
+
+[tool.setuptools.packages.find]
+include = ["spending_visualizer*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "C4"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_configs = true
+disallow_any_generics = true
+check_untyped_defs = true
+plugins = []
+
+[[tool.mypy.overrides]]
+module = ["streamlit.*", "pandas.*"]
+ignore_missing_imports = true

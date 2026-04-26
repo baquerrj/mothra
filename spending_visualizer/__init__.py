@@ -1,0 +1,2 @@
+"""Simple account viewer package."""
+
