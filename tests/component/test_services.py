@@ -17,6 +17,22 @@ def test_build_report_computes_recurring_totals(
     assert bundle.recurring_credit_total > 0
 
 
+def test_build_report_returns_expense_breakdown_and_variable_totals(
+    sample_csv_bytes: bytes,
+    tmp_path: Path,
+) -> None:
+    store = OverrideStore(tmp_path / "overrides.json")
+    bundle = build_report(sample_csv_bytes, store)
+    assert bundle.fixed_recurring_expense_total > 0
+    assert bundle.variable_recurring_expense_total > 0
+    assert bundle.report.recurring_expense_breakdown
+    assert bundle.report.variable_recurring_debits
+    assert any(
+        candidate.recurring_type.value == "variable"
+        for candidate in bundle.report.variable_recurring_debits
+    )
+
+
 def test_override_store_persists_only_local_metadata(tmp_path: Path) -> None:
     path = tmp_path / "overrides.json"
     store = OverrideStore(path)

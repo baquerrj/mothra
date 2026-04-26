@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from spending_visualizer.analysis.recurring import detect_recurring_candidates
 from spending_visualizer.config import AnalysisConfig
-from spending_visualizer.domain.models import Direction, Transaction
+from spending_visualizer.domain.models import Direction, RecurringType, Transaction
 from tests.support import build_transaction
 
 
@@ -19,6 +19,7 @@ def test_detects_monthly_recurring_debits(
     )
     assert len(candidates) == 1
     assert candidates[0].cadence == "monthly"
+    assert candidates[0].recurring_type == RecurringType.FIXED
 
 
 def test_detects_biweekly_recurring_credits(
@@ -63,6 +64,42 @@ def test_estimated_monthly_amount_scales_by_cadence() -> None:
     assert candidates[0].estimated_monthly_amount == Decimal("216.67")
 
 
+def test_detects_variable_monthly_recurring_debits() -> None:
+    amounts = ["100.00", "145.00", "195.00", "160.00"]
+    transactions = tuple(
+        build_transaction(
+            when=date(2026, 1, 15) + timedelta(days=30 * idx),
+            amount=f"-{amount}",
+            description_raw="CITI CARD ONLINE PAYMENT",
+            description_normalized="CITI CARD ONLINE PAYMENT",
+            source_row=idx + 1,
+        )
+        for idx, amount in enumerate(amounts)
+    )
+    candidates = detect_recurring_candidates(transactions, Direction.DEBIT, AnalysisConfig())
+    assert candidates[0].recurring_type == RecurringType.VARIABLE
+    assert candidates[0].amount_min == Decimal("100.00")
+    assert candidates[0].amount_max == Decimal("195.00")
+
+
+def test_variable_recurring_estimate_uses_average_amount() -> None:
+    amounts = ["90.00", "120.00", "150.00", "180.00"]
+    transactions = tuple(
+        build_transaction(
+            when=date(2026, 1, 12) + timedelta(days=30 * idx),
+            amount=f"-{amount}",
+            description_raw="CHASE CREDIT CARD PAYMENT",
+            description_normalized="CHASE CREDIT CARD PAYMENT",
+            source_row=idx + 1,
+        )
+        for idx, amount in enumerate(amounts)
+    )
+    candidate = detect_recurring_candidates(transactions, Direction.DEBIT, AnalysisConfig())[0]
+    assert candidate.recurring_type == RecurringType.VARIABLE
+    assert candidate.amount_average == Decimal("135.00")
+    assert candidate.estimated_monthly_amount == Decimal("135.00")
+
+
 def test_recurring_candidates_include_confidence_and_evidence_fields() -> None:
     transactions = tuple(
         build_transaction(
@@ -77,3 +114,4 @@ def test_recurring_candidates_include_confidence_and_evidence_fields() -> None:
     candidate = detect_recurring_candidates(transactions, Direction.DEBIT, AnalysisConfig())[0]
     assert candidate.confidence >= 0.55
     assert candidate.expected_day_window.startswith("days")
+    assert candidate.amount_average == Decimal("50.00")

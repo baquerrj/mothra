@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from collections import defaultdict
 from decimal import Decimal
-from statistics import median
+from statistics import mean, median
 
 from spending_visualizer.config import AnalysisConfig, CadenceRule
-from spending_visualizer.domain.models import Direction, RecurringCandidate, Transaction
+from spending_visualizer.domain.models import (
+    Direction,
+    RecurringCandidate,
+    RecurringType,
+    Transaction,
+)
 
 
 def detect_recurring_candidates(
@@ -28,7 +33,14 @@ def detect_recurring_candidates(
         cadence = infer_cadence(ordered, config)
         if cadence is None:
             continue
-        candidate = build_candidate(ordered, fingerprint, direction, cadence, config)
+        candidate = build_candidate(
+            ordered,
+            fingerprint,
+            direction,
+            cadence,
+            classify_amount_pattern(ordered, config),
+            config,
+        )
         if candidate.confidence >= config.minimum_confidence:
             candidates.append(candidate)
 
@@ -62,15 +74,46 @@ def infer_cadence(
     return best_rule
 
 
+def classify_amount_pattern(
+    transactions: tuple[Transaction, ...],
+    config: AnalysisConfig,
+) -> RecurringType:
+    amounts = [abs(transaction.amount) for transaction in transactions]
+    typical_amount = median(amounts)
+    tolerance = max(
+        Decimal(str(config.amount_variance_floor)),
+        typical_amount * Decimal(str(config.amount_variance_ratio)),
+    ).quantize(Decimal("0.01"))
+    stable_matches = sum(1 for amount in amounts if abs(amount - typical_amount) <= tolerance)
+    amount_match_ratio = stable_matches / len(amounts)
+    amount_span = max(amounts) - min(amounts)
+    span_ratio = (
+        amount_span / typical_amount if typical_amount != Decimal("0.00") else Decimal("0.00")
+    )
+    unique_amounts = len(set(amounts))
+    if (
+        amount_match_ratio >= config.fixed_amount_match_ratio
+        and span_ratio < Decimal(str(config.variable_amount_ratio_floor))
+    ):
+        return RecurringType.FIXED
+    if unique_amounts >= config.variable_min_unique_amounts:
+        return RecurringType.VARIABLE
+    return RecurringType.FIXED
+
+
 def build_candidate(
     transactions: tuple[Transaction, ...],
     fingerprint: str,
     direction: Direction,
     cadence: CadenceRule,
+    recurring_type: RecurringType,
     config: AnalysisConfig,
 ) -> RecurringCandidate:
     amounts = [abs(transaction.amount) for transaction in transactions]
     typical_amount = median(amounts)
+    average_amount = Decimal(str(mean(amounts))).quantize(Decimal("0.01"))
+    amount_min = min(amounts).quantize(Decimal("0.01"))
+    amount_max = max(amounts).quantize(Decimal("0.01"))
     tolerance = max(
         Decimal(str(config.amount_variance_floor)),
         typical_amount * Decimal(str(config.amount_variance_ratio)),
@@ -97,15 +140,20 @@ def build_candidate(
     expected_window = build_expected_window(transactions, cadence)
     candidate_id = f"{direction.value}:{fingerprint}:{cadence.name}"
     annual_multiplier = Decimal(cadence.annual_occurrences) / Decimal("12")
-    estimated_monthly_amount = (typical_amount * annual_multiplier).quantize(Decimal("0.01"))
+    baseline_amount = average_amount if recurring_type == RecurringType.VARIABLE else typical_amount
+    estimated_monthly_amount = (baseline_amount * annual_multiplier).quantize(Decimal("0.01"))
     return RecurringCandidate(
         candidate_id=candidate_id,
         kind=direction,
         fingerprint=fingerprint,
         merchant_label=fingerprint.title(),
+        recurring_type=recurring_type,
         cadence=cadence.name,
         expected_day_window=expected_window,
         typical_amount=typical_amount.quantize(Decimal("0.01")),
+        amount_average=average_amount,
+        amount_min=amount_min,
+        amount_max=amount_max,
         amount_tolerance=tolerance,
         occurrences=len(transactions),
         confidence=confidence,

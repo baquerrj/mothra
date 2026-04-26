@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simple-account-viewer"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local-only spending visualizer for checking account CSV files."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,12 +15,17 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "nox>=2024.10.9,<2026.0",
     "mypy>=1.11,<2.0",
     "pytest>=8.3,<9.0",
     "ruff>=0.11,<0.12",
 ]
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["spending_visualizer*"]
 
 [tool.pytest.ini_options]

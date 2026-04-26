@@ -9,10 +9,17 @@ python3 -m pip install -e ".[dev]"
 streamlit run app.py
 ```
 
+## Requirements
+
+The formal requirements and release updates are documented in [docs/requirements.md](/home/baquerrj/projects/simple-account-viewer/docs/requirements.md:1), and automated traceability lives in [docs/requirements_traceability.md](/home/baquerrj/projects/simple-account-viewer/docs/requirements_traceability.md:1).
+
 ## Quality Gates
 
 ```bash
-ruff check .
-mypy spending_visualizer app.py
-pytest
+nox -s lint
+nox -s typecheck
+nox -s tests
+nox -s smoke
 ```
+
+For a full local release gate, run `nox -s verify`.

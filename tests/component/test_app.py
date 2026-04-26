@@ -16,6 +16,7 @@ def test_app_renders_dashboard_from_sample_csv(
     app.button[0].click().run()
     assert len(app.exception) == 0
     assert any("Monthly Cash Flow" in heading.value for heading in app.subheader)
+    assert any("Variable Recurring Expenses" in str(metric.label) for metric in app.metric)
 
 
 def test_app_override_flow_updates_store(
@@ -39,7 +40,32 @@ def test_recurring_and_monthly_views_offer_csv_exports(
     app = AppTest.from_file("app.py")
     app.run()
     app.button[0].click().run()
-    assert len(app.get("download_button")) >= 3
+    labels = [
+        str(getattr(button, "label", ""))
+        for button in app.get("download_button")
+        if hasattr(button, "label")
+    ]
+    assert "Download monthly summary CSV" in labels
+    assert "Download recurring expense breakdown CSV" in labels
+    assert "Download variable recurring debits CSV" in labels
+
+
+def test_app_renders_variable_recurring_and_breakdown_views(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SPENDING_VISUALIZER_OVERRIDE_DIR", str(tmp_path))
+    app = AppTest.from_file("app.py")
+    app.run()
+    app.button[0].click().run()
+    assert any(
+        "Estimated Monthly Recurring Expense Breakdown" in str(markdown.value)
+        for markdown in app.markdown
+    )
+    assert any(
+        "Variable Recurring Debits" in str(markdown.value)
+        for markdown in app.markdown
+    )
 
 
 def test_transaction_descriptions_render_as_plain_text(

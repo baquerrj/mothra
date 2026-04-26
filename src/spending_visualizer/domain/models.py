@@ -23,6 +23,11 @@ class OverrideDecision(str, Enum):
     REJECTED = "rejected"
 
 
+class RecurringType(str, Enum):
+    FIXED = "fixed"
+    VARIABLE = "variable"
+
+
 @dataclass(frozen=True)
 class Transaction:
     date: date
@@ -39,9 +44,13 @@ class RecurringCandidate:
     kind: Direction
     fingerprint: str
     merchant_label: str
+    recurring_type: RecurringType
     cadence: str
     expected_day_window: str
     typical_amount: Decimal
+    amount_average: Decimal
+    amount_min: Decimal
+    amount_max: Decimal
     amount_tolerance: Decimal
     occurrences: int
     confidence: float
@@ -66,10 +75,25 @@ class Insight:
 
 
 @dataclass(frozen=True)
+class RecurringExpenseBreakdownRow:
+    merchant_label: str
+    cadence: str
+    recurring_type: RecurringType
+    estimated_monthly_amount: Decimal
+    amount_average: Decimal
+    amount_min: Decimal
+    amount_max: Decimal
+    occurrences: int
+    confidence: float
+
+
+@dataclass(frozen=True)
 class AnalysisReport:
     fingerprint: str
     transactions: tuple[Transaction, ...]
     monthly_summaries: tuple[MonthlySummary, ...]
     recurring_debits: tuple[RecurringCandidate, ...]
+    variable_recurring_debits: tuple[RecurringCandidate, ...]
     recurring_credits: tuple[RecurringCandidate, ...]
+    recurring_expense_breakdown: tuple[RecurringExpenseBreakdownRow, ...]
     insights: tuple[Insight, ...]

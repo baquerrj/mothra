@@ -16,8 +16,11 @@ class CadenceRule:
 class AnalysisConfig:
     minimum_occurrences: int = 3
     minimum_confidence: float = 0.55
+    fixed_amount_match_ratio: float = 0.65
     amount_variance_ratio: float = 0.15
     amount_variance_floor: float = 5.0
+    variable_amount_ratio_floor: float = 0.20
+    variable_min_unique_amounts: int = 3
     cadence_rules: tuple[CadenceRule, ...] = (
         CadenceRule("weekly", 7, 2, 52),
         CadenceRule("biweekly", 14, 3, 26),
@@ -54,6 +57,8 @@ REQUIREMENT_IDS: tuple[str, ...] = (
     "SYS-07",
     "SYS-08",
     "SYS-09",
+    "SYS-10",
+    "SYS-11",
     "ING-01",
     "ING-02",
     "ING-03",
@@ -61,16 +66,20 @@ REQUIREMENT_IDS: tuple[str, ...] = (
     "ANL-02",
     "ANL-03",
     "ANL-04",
+    "ANL-05",
     "UI-01",
     "UI-02",
     "UI-03",
+    "UI-04",
     "PST-01",
     "PST-02",
     "QLT-01",
+    "QLT-02",
     "ARC-01",
     "ARC-02",
     "ARC-03",
     "ARC-04",
+    "ARC-05",
     "DSN-01",
     "DSN-02",
     "DSN-03",
