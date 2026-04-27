@@ -3,6 +3,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+FILENAME_PATTERN = re.compile(
+    r"^(?P<bank>[A-Za-z0-9-]+)__(?P<account_type>checking|creditcard)__(?P<account_number>[A-Za-z0-9-]+)\.csv$",
+    re.IGNORECASE,
+)
+
 
 @dataclass(frozen=True)
 class CadenceRule:
@@ -21,6 +26,9 @@ class AnalysisConfig:
     amount_variance_floor: float = 5.0
     variable_amount_ratio_floor: float = 0.20
     variable_min_unique_amounts: int = 3
+    payment_match_window_days: int = 5
+    payment_match_min_confidence: float = 0.60
+    recent_interest_months: int = 3
     cadence_rules: tuple[CadenceRule, ...] = (
         CadenceRule("weekly", 7, 2, 52),
         CadenceRule("biweekly", 14, 3, 26),
@@ -59,20 +67,29 @@ REQUIREMENT_IDS: tuple[str, ...] = (
     "SYS-09",
     "SYS-10",
     "SYS-11",
+    "SYS-12",
+    "SYS-13",
+    "SYS-14",
+    "SYS-15",
     "ING-01",
     "ING-02",
     "ING-03",
+    "ING-04",
     "ANL-01",
     "ANL-02",
     "ANL-03",
     "ANL-04",
     "ANL-05",
+    "ANL-06",
+    "ANL-07",
     "UI-01",
     "UI-02",
     "UI-03",
     "UI-04",
+    "UI-05",
     "PST-01",
     "PST-02",
+    "PST-03",
     "QLT-01",
     "QLT-02",
     "ARC-01",
@@ -80,6 +97,7 @@ REQUIREMENT_IDS: tuple[str, ...] = (
     "ARC-03",
     "ARC-04",
     "ARC-05",
+    "ARC-06",
     "DSN-01",
     "DSN-02",
     "DSN-03",

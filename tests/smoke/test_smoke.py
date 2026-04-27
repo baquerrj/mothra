@@ -8,8 +8,12 @@ from streamlit.testing.v1 import AppTest
 
 def test_streamlit_smoke_flow(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("SPENDING_VISUALIZER_OVERRIDE_DIR", str(tmp_path))
+    checking_file = tmp_path / "wellsfargo__checking__1234.csv"
+    checking_file.write_bytes(Path("Checking1.csv").read_bytes())
     app = AppTest.from_file("app.py")
     app.run()
-    app.button[0].click().run()
+    app.file_uploader[0].set_value(
+        [(checking_file.name, checking_file.read_bytes(), "text/csv")]
+    ).run()
     assert len(app.exception) == 0
     assert any("Recurring Debits" in markdown.value for markdown in app.markdown)

@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from spending_visualizer.domain.models import Transaction
-from tests.support import build_transaction
+from spending_visualizer.domain.models import AccountType, Transaction
+from tests.support import build_account_descriptor, build_transaction
 
 
 @pytest.fixture
@@ -15,8 +15,29 @@ def sample_csv_bytes() -> bytes:
 
 
 @pytest.fixture
+def sample_credit_card_csv_bytes() -> bytes:
+    return Path("CreditCard.csv").read_bytes()
+
+
+@pytest.fixture
+def sample_checking_filename() -> str:
+    return "wellsfargo__checking__1234.csv"
+
+
+@pytest.fixture
+def sample_credit_card_filename() -> str:
+    return "wellsfargo__creditcard__9876.csv"
+
+
+@pytest.fixture
 def recurring_transactions() -> tuple[Transaction, ...]:
     base = date(2026, 1, 5)
+    checking_account = build_account_descriptor()
+    payroll_account = build_account_descriptor(
+        account_type=AccountType.CHECKING,
+        account_number="1111",
+        fingerprint="payroll-fixture",
+    )
     items = [
         build_transaction(
             when=base + timedelta(days=30 * idx),
@@ -27,6 +48,7 @@ def recurring_transactions() -> tuple[Transaction, ...]:
             ),
             description_normalized="STREAMING SERVICE",
             source_row=idx + 1,
+            account=checking_account,
         )
         for idx in range(4)
     ]
@@ -37,6 +59,7 @@ def recurring_transactions() -> tuple[Transaction, ...]:
             description_raw="PAYROLL EMPLOYER INC",
             description_normalized="PAYROLL EMPLOYER INC",
             source_row=20 + idx,
+            account=payroll_account,
         )
         for idx in range(4)
     ]

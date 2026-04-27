@@ -1,6 +1,6 @@
 # Simple Account Viewer
 
-Local-only Python `Streamlit` app for checking-account spending analysis. The app ingests a CSV, normalizes transactions, detects likely recurring debits and credits, summarizes monthly cash flow, and surfaces budgeting insights.
+Local-only Python `Streamlit` app for checking-account and credit-card analysis. The app ingests up to one checking CSV and one credit-card CSV, normalizes transactions, detects likely recurring debits and credits, summarizes monthly cash flow, estimates credit-card APR trends, and cross-references likely checking-to-card payments.
 
 ## Run
 
@@ -8,6 +8,8 @@ Local-only Python `Streamlit` app for checking-account spending analysis. The ap
 python3 -m pip install -e ".[dev]"
 streamlit run app.py
 ```
+
+Uploaded filenames must match `<bank>__<account_type>__<account_number>.csv`, where `account_type` is `checking` or `creditcard`.
 
 ## Requirements
 

@@ -42,6 +42,13 @@ def test_analysis_and_ingest_do_not_import_streamlit() -> None:
 
 def test_public_domain_types_exist() -> None:
     for attribute in (
+        "AccountDescriptor",
+        "AccountType",
+        "AccountAnalysisReport",
+        "CrossAccountReport",
+        "DashboardReport",
+        "PaymentMatchCandidate",
+        "InterestEstimate",
         "Transaction",
         "RecurringCandidate",
         "RecurringExpenseBreakdownRow",
@@ -54,6 +61,12 @@ def test_public_domain_types_exist() -> None:
 
 def test_domain_models_are_dataclasses() -> None:
     for attribute in (
+        models.AccountDescriptor,
+        models.AccountAnalysisReport,
+        models.CrossAccountReport,
+        models.DashboardReport,
+        models.PaymentMatchCandidate,
+        models.InterestEstimate,
         models.Transaction,
         models.RecurringCandidate,
         models.RecurringExpenseBreakdownRow,
@@ -67,6 +80,7 @@ def test_analysis_config_is_centralized() -> None:
     analysis_config = config.AnalysisConfig()
     assert analysis_config.minimum_occurrences == 3
     assert analysis_config.variable_min_unique_amounts == 3
+    assert analysis_config.payment_match_window_days == 5
 
 
 def test_packaging_uses_src_layout() -> None:

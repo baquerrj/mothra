@@ -11,10 +11,11 @@ from decimal import Decimal, InvalidOperation
 from spending_visualizer.config import (
     DESCRIPTION_CLEANUP_PATTERNS,
     DESCRIPTION_STRIP_PATTERNS,
+    FILENAME_PATTERN,
     MULTISPACE_PATTERN,
     NON_WORD_PATTERN,
 )
-from spending_visualizer.domain.models import Direction, Transaction
+from spending_visualizer.domain.models import AccountDescriptor, AccountType, Direction, Transaction
 
 
 class IngestionError(ValueError):
@@ -23,27 +24,37 @@ class IngestionError(ValueError):
 
 @dataclass(frozen=True)
 class ParsedTransactions:
-    fingerprint: str
+    account: AccountDescriptor
     transactions: tuple[Transaction, ...]
 
 
 EXPECTED_HEADERS = {"date", "amount", "description"}
 
 
-def load_transactions(file_bytes: bytes) -> ParsedTransactions:
+def load_transactions(
+    file_bytes: bytes,
+    filename: str,
+    expected_account_type: AccountType | None = None,
+) -> ParsedTransactions:
     text = decode_csv(file_bytes)
     rows = list(csv.reader(io.StringIO(text)))
     if not rows:
         raise IngestionError("The uploaded CSV is empty.")
 
+    fingerprint = hashlib.sha256(file_bytes).hexdigest()
+    account = parse_account_descriptor(filename, fingerprint)
+    if expected_account_type is not None and account.account_type != expected_account_type:
+        raise IngestionError(
+            f"{filename!r} must be uploaded as a {expected_account_type.value} account CSV."
+        )
+
     header_mapping: dict[str, int] | None = detect_header_mapping(rows[0])
     data_rows = rows[1:] if header_mapping is not None else rows
-    transactions = tuple(parse_rows(data_rows, header_mapping))
+    transactions = tuple(parse_rows(data_rows, header_mapping, account))
     if not transactions:
         raise IngestionError("No valid transactions were found in the uploaded CSV.")
 
-    fingerprint = hashlib.sha256(file_bytes).hexdigest()
-    return ParsedTransactions(fingerprint=fingerprint, transactions=transactions)
+    return ParsedTransactions(account=account, transactions=transactions)
 
 
 def decode_csv(file_bytes: bytes) -> str:
@@ -60,44 +71,61 @@ def decode_csv(file_bytes: bytes) -> str:
 def detect_header_mapping(first_row: list[str]) -> dict[str, int] | None:
     lowered = {cell.strip().strip('"').lower(): idx for idx, cell in enumerate(first_row)}
     if EXPECTED_HEADERS.issubset(lowered):
-        return {name: lowered[name] for name in EXPECTED_HEADERS}
+        mapping = {name: lowered[name] for name in EXPECTED_HEADERS}
+        if "status" in lowered:
+            mapping["status"] = lowered["status"]
+        return mapping
     return None
 
 
 def parse_rows(
     rows: Iterable[list[str]],
     header_mapping: dict[str, int] | None,
+    account: AccountDescriptor,
 ) -> Iterable[Transaction]:
     for row_index, row in enumerate(rows, start=2 if header_mapping else 1):
         if not any(cell.strip() for cell in row):
             continue
-        date_value, amount_value, description_value = extract_fields(row, header_mapping)
+        date_value, amount_value, description_value, status_value = extract_fields(
+            row,
+            header_mapping,
+        )
         parsed_date = parse_date(date_value, row_index)
         parsed_amount = parse_amount(amount_value, row_index)
         description_raw = description_value.strip()
         if not description_raw:
             raise IngestionError(f"Row {row_index} is missing a transaction description.")
         yield Transaction(
+            account=account,
             date=parsed_date,
             amount=parsed_amount,
             description_raw=description_raw,
             description_normalized=normalize_description(description_raw),
             direction=Direction.CREDIT if parsed_amount >= Decimal("0.00") else Direction.DEBIT,
             source_row=row_index,
+            posted_status=(
+                status_value.strip()
+                if status_value is not None and status_value.strip()
+                else None
+            ),
         )
 
 
-def extract_fields(row: list[str], header_mapping: dict[str, int] | None) -> tuple[str, str, str]:
+def extract_fields(
+    row: list[str],
+    header_mapping: dict[str, int] | None,
+) -> tuple[str, str, str, str | None]:
     if header_mapping is not None:
         return (
             row[header_mapping["date"]],
             row[header_mapping["amount"]],
             row[header_mapping["description"]],
+            row[header_mapping["status"]] if "status" in header_mapping else None,
         )
     if len(row) >= 5:
-        return row[0], row[1], row[4]
+        return row[0], row[1], row[4], None
     if len(row) >= 3:
-        return row[0], row[1], row[2]
+        return row[0], row[1], row[2], None
     raise IngestionError(
         "The uploaded CSV must contain logical Date, Amount, and Description fields."
     )
@@ -130,3 +158,19 @@ def normalize_description(description: str) -> str:
     cleaned = NON_WORD_PATTERN.sub(" ", cleaned)
     cleaned = MULTISPACE_PATTERN.sub(" ", cleaned).strip()
     return cleaned or "UNKNOWN TRANSACTION"
+
+
+def parse_account_descriptor(filename: str, fingerprint: str) -> AccountDescriptor:
+    match = FILENAME_PATTERN.match(filename.strip())
+    if match is None:
+        raise IngestionError(
+            "CSV filenames must match <bank>__<account_type>__<account_number>.csv and "
+            "use account_type values checking or creditcard."
+        )
+    return AccountDescriptor(
+        source_filename=filename,
+        bank_name=match.group("bank"),
+        account_type=AccountType(match.group("account_type").lower()),
+        account_number=match.group("account_number"),
+        fingerprint=fingerprint,
+    )

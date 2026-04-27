@@ -11,6 +11,11 @@ class Direction(str, Enum):
     DEBIT = "debit"
 
 
+class AccountType(str, Enum):
+    CHECKING = "checking"
+    CREDITCARD = "creditcard"
+
+
 class InsightSeverity(str, Enum):
     INFO = "info"
     WARNING = "warning"
@@ -29,13 +34,31 @@ class RecurringType(str, Enum):
 
 
 @dataclass(frozen=True)
+class AccountDescriptor:
+    source_filename: str
+    bank_name: str
+    account_type: AccountType
+    account_number: str
+    fingerprint: str
+
+    @property
+    def storage_key(self) -> str:
+        return (
+            f"{self.bank_name.lower()}:{self.account_type.value}:"
+            f"{self.account_number}:{self.fingerprint}"
+        )
+
+
+@dataclass(frozen=True)
 class Transaction:
+    account: AccountDescriptor
     date: date
     amount: Decimal
     description_raw: str
     description_normalized: str
     direction: Direction
     source_row: int
+    posted_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -75,6 +98,16 @@ class Insight:
 
 
 @dataclass(frozen=True)
+class InterestEstimate:
+    current_apr: Decimal | None
+    recent_average_apr: Decimal | None
+    recent_interest_average: Decimal
+    confidence_label: str
+    trend_summary: str
+    caveat: str
+
+
+@dataclass(frozen=True)
 class RecurringExpenseBreakdownRow:
     merchant_label: str
     cadence: str
@@ -88,8 +121,18 @@ class RecurringExpenseBreakdownRow:
 
 
 @dataclass(frozen=True)
-class AnalysisReport:
-    fingerprint: str
+class PaymentMatchCandidate:
+    match_id: str
+    checking_transaction: Transaction
+    credit_card_transaction: Transaction
+    confidence: float
+    evidence: str
+    status: OverrideDecision
+
+
+@dataclass(frozen=True)
+class AccountAnalysisReport:
+    account: AccountDescriptor
     transactions: tuple[Transaction, ...]
     monthly_summaries: tuple[MonthlySummary, ...]
     recurring_debits: tuple[RecurringCandidate, ...]
@@ -97,3 +140,22 @@ class AnalysisReport:
     recurring_credits: tuple[RecurringCandidate, ...]
     recurring_expense_breakdown: tuple[RecurringExpenseBreakdownRow, ...]
     insights: tuple[Insight, ...]
+    payment_credits: tuple[Transaction, ...] = ()
+    interest_transactions: tuple[Transaction, ...] = ()
+    late_fee_transactions: tuple[Transaction, ...] = ()
+    interest_estimate: InterestEstimate | None = None
+
+
+@dataclass(frozen=True)
+class CrossAccountReport:
+    checking_account: AccountDescriptor
+    credit_card_account: AccountDescriptor
+    payment_matches: tuple[PaymentMatchCandidate, ...]
+    matched_payment_total: Decimal
+
+
+@dataclass(frozen=True)
+class DashboardReport:
+    checking_report: AccountAnalysisReport | None
+    credit_card_report: AccountAnalysisReport | None
+    cross_account_report: CrossAccountReport | None
