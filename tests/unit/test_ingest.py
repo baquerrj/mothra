@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
 from spending_visualizer.domain.models import AccountType
 from spending_visualizer.ingest.csv_loader import (
     IngestionError,
+    build_filename_error_message,
     load_transactions,
     normalize_description,
     parse_account_descriptor,
+    validate_account_filename,
 )
+from spending_visualizer.logging_utils import configure_logging
 
 
 def test_load_transactions_supports_headered_csv(sample_checking_filename: str) -> None:
@@ -76,18 +80,42 @@ def test_normalize_description_removes_card_noise() -> None:
 
 
 @pytest.mark.parametrize(
-    "filename",
+    ("filename", "message"),
     [
-        "missingparts.csv",
-        "__checking__1234.csv",
-        "wellsfargo__savings__1234.csv",
-        "wellsfargo__creditcard__.csv",
-        "wellsfargo__checking__1234.txt",
+        ("wf_checking_1888.csv", "single underscores"),
+        ("wellsfargo__savings__1234.csv", "unsupported account_type"),
+        ("wellsfargo__creditcard__.csv", "missing account_number"),
+        ("wellsfargo__checking__1234.txt", "expected a .csv extension"),
     ],
 )
-def test_invalid_filename_raises_clear_errors(filename: str) -> None:
-    with pytest.raises(IngestionError, match="CSV filenames must match"):
+def test_invalid_filename_raises_reason_specific_errors(
+    filename: str,
+    message: str,
+) -> None:
+    with pytest.raises(IngestionError, match=message):
         parse_account_descriptor(filename, "fixture")
+
+
+def test_validate_account_filename_returns_structured_reason() -> None:
+    validation = validate_account_filename("wf_checking_1888.csv")
+    assert validation.is_valid is False
+    assert validation.error_reason == "found single underscores instead of required '__' separators"
+    assert "single underscores" in build_filename_error_message(validation)
+
+
+def test_invalid_filename_emits_warning_log(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "ingest.log"
+    monkeypatch.setenv("SPENDING_VISUALIZER_LOG_FILE", str(log_path))
+    configure_logging()
+    with pytest.raises(IngestionError):
+        parse_account_descriptor("wf_checking_1888.csv", "fixture")
+    contents = log_path.read_text(encoding="utf-8")
+    assert "Filename validation failed" in contents
+    assert "wf_checking_1888.csv" in contents
+    assert "Music Subscription" not in contents
 
 
 @pytest.mark.parametrize(

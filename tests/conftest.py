@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from pathlib import Path
 
 import pytest
 
@@ -11,12 +10,38 @@ from tests.support import build_account_descriptor, build_transaction
 
 @pytest.fixture
 def sample_csv_bytes() -> bytes:
-    return Path("Checking1.csv").read_bytes()
+    return (
+        b"Date,Amount,Description\n"
+        b"2026-01-03,1500.00,Payroll Employer Inc\n"
+        b"2026-01-05,-100.00,Rent Payment\n"
+        b"2026-01-15,-50.00,Streaming Service\n"
+        b"2026-01-03,-120.00,CITI CARD ONLINE PAYMENT\n"
+        b"2026-02-03,1500.00,Payroll Employer Inc\n"
+        b"2026-02-05,-100.00,Rent Payment\n"
+        b"2026-02-15,-55.00,Streaming Service\n"
+        b"2026-02-04,-150.00,CITI CARD ONLINE PAYMENT\n"
+        b"2026-03-03,1500.00,Payroll Employer Inc\n"
+        b"2026-03-05,-100.00,Rent Payment\n"
+        b"2026-03-15,-60.00,Streaming Service\n"
+        b"2026-03-05,-180.00,CITI CARD ONLINE PAYMENT\n"
+    )
 
 
 @pytest.fixture
 def sample_credit_card_csv_bytes() -> bytes:
-    return Path("CreditCard.csv").read_bytes()
+    return (
+        b"DATE,DESCRIPTION,AMOUNT,CHECK #,STATUS\n"
+        b"01/04/2026,ONLINE PAYMENT THANK YOU,120.00,,Posted\n"
+        b"01/10/2026,INTEREST CHARGE ON PURCHASES,-10.00,,Posted\n"
+        b"01/15/2026,NETFLIX,-15.99,,Posted\n"
+        b"02/05/2026,ONLINE PAYMENT THANK YOU,150.00,,Posted\n"
+        b"02/10/2026,INTEREST CHARGE ON PURCHASES,-9.50,,Posted\n"
+        b"02/15/2026,NETFLIX,-16.99,,Posted\n"
+        b"03/06/2026,ONLINE PAYMENT THANK YOU,180.00,,Posted\n"
+        b"03/10/2026,INTEREST CHARGE ON PURCHASES,-9.75,,Posted\n"
+        b"03/15/2026,NETFLIX,-17.99,,Posted\n"
+        b"03/20/2026,LATE FEE,-35.00,,Posted\n"
+    )
 
 
 @pytest.fixture

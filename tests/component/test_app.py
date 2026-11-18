@@ -121,14 +121,57 @@ def test_invalid_filenames_are_rejected(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("SPENDING_VISUALIZER_OVERRIDE_DIR", str(tmp_path))
-    invalid_file = write_named_csv(tmp_path / "Checking1.csv", sample_csv_bytes)
+    invalid_file = write_named_csv(tmp_path / "wf_checking_1888.csv", sample_csv_bytes)
     app = AppTest.from_file("app.py")
     app.run()
     upload_checking_csv(app, invalid_file)
     assert any(
-        "CSV filenames must match" in str(error.value)
+        "single underscores" in str(error.value)
         for error in app.error
     )
+
+
+def test_invalid_upload_writes_diagnostic_log_file(
+    monkeypatch: MonkeyPatch,
+    sample_csv_bytes: bytes,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SPENDING_VISUALIZER_OVERRIDE_DIR", str(tmp_path))
+    log_path = tmp_path / "spending-visualizer.log"
+    monkeypatch.setenv("SPENDING_VISUALIZER_LOG_FILE", str(log_path))
+    invalid_file = write_named_csv(tmp_path / "wf_checking_1888.csv", sample_csv_bytes)
+    app = AppTest.from_file("app.py")
+    app.run()
+    upload_checking_csv(app, invalid_file)
+    assert log_path.exists()
+    contents = log_path.read_text(encoding="utf-8")
+    assert "Upload parsing failed" in contents
+    assert "wf_checking_1888.csv" in contents
+    assert "single underscores" in contents
+    assert "expected_account_type=checking" in contents
+
+
+def test_successful_upload_writes_account_metadata_to_log_file(
+    monkeypatch: MonkeyPatch,
+    sample_csv_bytes: bytes,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SPENDING_VISUALIZER_OVERRIDE_DIR", str(tmp_path))
+    log_path = tmp_path / "spending-visualizer.log"
+    monkeypatch.setenv("SPENDING_VISUALIZER_LOG_FILE", str(log_path))
+    checking_file = write_named_csv(
+        tmp_path / "wellsfargo__checking__1234.csv",
+        sample_csv_bytes,
+    )
+    app = AppTest.from_file("app.py")
+    app.run()
+    upload_checking_csv(app, checking_file)
+    assert log_path.exists()
+    contents = log_path.read_text(encoding="utf-8")
+    assert "Upload parsed successfully" in contents
+    assert "bank=wellsfargo" in contents
+    assert "account_type=checking" in contents
+    assert "account_number=1234" in contents
 
 
 def test_transaction_descriptions_render_as_plain_text(

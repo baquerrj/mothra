@@ -3,6 +3,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+REQUIRED_FILENAME_FORMAT = "<bank>__<account_type>__<account_number>.csv"
+SUPPORTED_ACCOUNT_TYPES: tuple[str, ...] = ("checking", "creditcard")
+LOG_FILE_ENV_VAR = "SPENDING_VISUALIZER_LOG_FILE"
+LOG_LEVEL_ENV_VAR = "SPENDING_VISUALIZER_LOG_LEVEL"
+
 FILENAME_PATTERN = re.compile(
     r"^(?P<bank>[A-Za-z0-9-]+)__(?P<account_type>checking|creditcard)__(?P<account_number>[A-Za-z0-9-]+)\.csv$",
     re.IGNORECASE,

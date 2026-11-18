@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -14,18 +15,47 @@ from spending_visualizer.config import (
     FILENAME_PATTERN,
     MULTISPACE_PATTERN,
     NON_WORD_PATTERN,
+    REQUIRED_FILENAME_FORMAT,
+    SUPPORTED_ACCOUNT_TYPES,
 )
 from spending_visualizer.domain.models import AccountDescriptor, AccountType, Direction, Transaction
+
+logger = logging.getLogger(__name__)
+ACCOUNT_PART_PATTERN = FILENAME_PATTERN
 
 
 class IngestionError(ValueError):
     """Raised when the uploaded CSV cannot be parsed safely."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str | None = None,
+        context: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.context = context or {}
 
 
 @dataclass(frozen=True)
 class ParsedTransactions:
     account: AccountDescriptor
     transactions: tuple[Transaction, ...]
+
+
+@dataclass(frozen=True)
+class FilenameValidationResult:
+    filename: str
+    bank_name: str | None
+    account_type: str | None
+    account_number: str | None
+    error_reason: str | None
+
+    @property
+    def is_valid(self) -> bool:
+        return self.error_reason is None
 
 
 EXPECTED_HEADERS = {"date", "amount", "description"}
@@ -161,16 +191,126 @@ def normalize_description(description: str) -> str:
 
 
 def parse_account_descriptor(filename: str, fingerprint: str) -> AccountDescriptor:
-    match = FILENAME_PATTERN.match(filename.strip())
-    if match is None:
-        raise IngestionError(
-            "CSV filenames must match <bank>__<account_type>__<account_number>.csv and "
-            "use account_type values checking or creditcard."
+    validation = validate_account_filename(filename)
+    if not validation.is_valid:
+        message = build_filename_error_message(validation)
+        logger.warning(
+            "Filename validation failed: filename=%s reason=%s expected_format=%s",
+            validation.filename,
+            validation.error_reason,
+            REQUIRED_FILENAME_FORMAT,
         )
+        raise IngestionError(
+            message,
+            reason=validation.error_reason,
+            context={
+                "filename": validation.filename,
+                "expected_format": REQUIRED_FILENAME_FORMAT,
+            },
+        )
+    match = FILENAME_PATTERN.match(validation.filename)
+    assert match is not None
     return AccountDescriptor(
-        source_filename=filename,
+        source_filename=validation.filename,
         bank_name=match.group("bank"),
         account_type=AccountType(match.group("account_type").lower()),
         account_number=match.group("account_number"),
         fingerprint=fingerprint,
+    )
+
+
+def validate_account_filename(filename: str) -> FilenameValidationResult:
+    cleaned = filename.strip()
+    lowered = cleaned.lower()
+    if not lowered.endswith(".csv"):
+        return FilenameValidationResult(
+            filename=cleaned,
+            bank_name=None,
+            account_type=None,
+            account_number=None,
+            error_reason="expected a .csv extension",
+        )
+
+    stem = cleaned[:-4]
+    if "__" not in stem:
+        reason = "found single underscores instead of required '__' separators"
+        if "_" not in stem:
+            reason = "missing required '__' separators"
+        return FilenameValidationResult(
+            filename=cleaned,
+            bank_name=None,
+            account_type=None,
+            account_number=None,
+            error_reason=reason,
+        )
+
+    parts = stem.split("__")
+    if len(parts) != 3:
+        return FilenameValidationResult(
+            filename=cleaned,
+            bank_name=None,
+            account_type=None,
+            account_number=None,
+            error_reason="expected exactly three filename segments separated by '__'",
+        )
+
+    bank_name, account_type, account_number = parts
+    if not bank_name:
+        return FilenameValidationResult(
+            filename=cleaned,
+            bank_name=None,
+            account_type=account_type or None,
+            account_number=account_number or None,
+            error_reason="missing bank segment before the first '__'",
+        )
+    if not account_type:
+        return FilenameValidationResult(
+            filename=cleaned,
+            bank_name=bank_name,
+            account_type=None,
+            account_number=account_number or None,
+            error_reason="missing account_type segment between '__' separators",
+        )
+    if account_type.lower() not in SUPPORTED_ACCOUNT_TYPES:
+        return FilenameValidationResult(
+            filename=cleaned,
+            bank_name=bank_name,
+            account_type=account_type,
+            account_number=account_number or None,
+            error_reason=(
+                f"unsupported account_type {account_type!r}; use checking or creditcard"
+            ),
+        )
+    if not account_number:
+        return FilenameValidationResult(
+            filename=cleaned,
+            bank_name=bank_name,
+            account_type=account_type,
+            account_number=None,
+            error_reason="missing account_number segment after the last '__'",
+        )
+    if FILENAME_PATTERN.match(cleaned) is None:
+        return FilenameValidationResult(
+            filename=cleaned,
+            bank_name=bank_name,
+            account_type=account_type,
+            account_number=account_number,
+            error_reason=(
+                "bank and account_number may only contain letters, numbers, and hyphens"
+            ),
+        )
+    return FilenameValidationResult(
+        filename=cleaned,
+        bank_name=bank_name,
+        account_type=account_type,
+        account_number=account_number,
+        error_reason=None,
+    )
+
+
+def build_filename_error_message(validation: FilenameValidationResult) -> str:
+    assert validation.error_reason is not None
+    return (
+        f"Invalid filename {validation.filename!r}: expected {REQUIRED_FILENAME_FORMAT}; "
+        f"{validation.error_reason}."
     )

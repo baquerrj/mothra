@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import time
 from collections.abc import Callable
 from decimal import Decimal
@@ -28,12 +29,14 @@ from spending_visualizer.ingest.csv_loader import (
     ParsedTransactions,
     load_transactions,
 )
+from spending_visualizer.logging_utils import configure_logging
 from spending_visualizer.persistence.overrides import (
     PAYMENT_MATCH_NAMESPACE,
     RECURRING_NAMESPACE,
     OverrideStore,
 )
 
+logger = logging.getLogger(__name__)
 REFRESH_DEBOUNCE_SECONDS = 3.0
 REFRESH_POLL_INTERVAL = "1s"
 SAMPLE_CHECKING_FILENAME = "wellsfargo__checking__sample1234.csv"
@@ -41,6 +44,7 @@ SAMPLE_CREDIT_CARD_FILENAME = "wellsfargo__creditcard__sample5678.csv"
 
 
 def main() -> None:
+    configure_logging()
     st.set_page_config(page_title="Spending Visualizer", layout="wide")
     st.title("Spending Visualizer")
     st.caption(
@@ -130,13 +134,38 @@ def parse_selected_file(
         assert fallback_path is not None
         raw_bytes = fallback_path.read_bytes()
     source_filename = filename if filename is not None else fallback_filename
+    logger.info(
+        "Upload attempt: filename=%s expected_account_type=%s size_bytes=%d",
+        source_filename,
+        expected_account_type.value,
+        len(raw_bytes),
+    )
     try:
-        return load_transactions(
+        parsed = load_transactions(
             raw_bytes,
             source_filename,
             expected_account_type=expected_account_type,
         )
+        logger.info(
+            "Upload parsed successfully: filename=%s bank=%s account_type=%s "
+            "account_number=%s transactions=%d",
+            source_filename,
+            parsed.account.bank_name,
+            parsed.account.account_type.value,
+            parsed.account.account_number,
+            len(parsed.transactions),
+        )
+        return parsed
     except IngestionError as exc:
+        logger.warning(
+            "Upload parsing failed: filename=%s expected_account_type=%s size_bytes=%d "
+            "reason=%s context=%s",
+            source_filename,
+            expected_account_type.value,
+            len(raw_bytes),
+            exc.reason or str(exc),
+            exc.context,
+        )
         st.error(str(exc))
         return None
 

@@ -11,6 +11,10 @@ streamlit run app.py
 
 Uploaded filenames must match `<bank>__<account_type>__<account_number>.csv`, where `account_type` is `checking` or `creditcard`.
 
+Optional logging env vars:
+- `SPENDING_VISUALIZER_LOG_FILE`: write application logs to a local file in addition to the terminal
+- `SPENDING_VISUALIZER_LOG_LEVEL`: override the default log level (`INFO`)
+
 ## Requirements
 
 The formal requirements and release updates are documented in [docs/requirements.md](/home/baquerrj/projects/simple-account-viewer/docs/requirements.md:1), and automated traceability lives in [docs/requirements_traceability.md](/home/baquerrj/projects/simple-account-viewer/docs/requirements_traceability.md:1).
